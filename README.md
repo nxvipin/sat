@@ -1,36 +1,20 @@
-# sat
+# 🔐 sat
 
-FIXME: description
+A basic work-in-progress [SAT](https://en.wikipedia.org/wiki/Boolean_satisfiability_problem) solver that implements the standard [DPLL algorithm]((https://en.wikipedia.org/wiki/DPLL_algorithm)) with a slightly modified unit propagation algorithm described in the paper by [Crawford & Auton](https://www.aaai.org/Papers/AAAI/1993/AAAI93-004.pdf). This is used as a tool to learn SAT solving techniques and I hope to upgrade this to incorporate most of the advances in this field. Currently this is too slow for any benchmarks and is unlikely to be useful for any practical purposes.
 
-## Installation
+The solver expects problems to be already in the conjunctive normal form (CNF) and accepts DIMACS files as input and will print the result to STDOUT as described in the [DIMACS specification](http://www.satcompetition.org/2011/rules.pdf). Some test inputs are available in the `resources` directory - some of which are sourced from the [SATLIB benchmark problems](https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html).
 
-Download from http://example.com/FIXME.
 
-## Usage
 
-FIXME: explanation
+## 👩‍💻 Usage
 
-    $ java -jar sat-0.1.0-standalone.jar [args]
 
-## Options
+    $ lein run resources/test.cnf
 
-FIXME: listing of options this app accepts.
 
-## Examples
+## 👮🏽‍♂️ License
 
-...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
-
-## License
-
-Copyright © 2019 FIXME
+Copyright © 2020 Vipin Nair
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
