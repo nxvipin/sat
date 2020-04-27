@@ -1,8 +1,8 @@
 # 🔐 sat
 
-A basic work-in-progress [SAT](https://en.wikipedia.org/wiki/Boolean_satisfiability_problem) solver that implements the standard [DPLL algorithm]((https://en.wikipedia.org/wiki/DPLL_algorithm)) with a slightly modified unit propagation algorithm described in the paper by [Crawford & Auton](https://www.aaai.org/Papers/AAAI/1993/AAAI93-004.pdf). This is used as a tool to learn SAT solving techniques and I hope to upgrade this to incorporate most of the advances in this field. Currently this is too slow for any benchmarks and is unlikely to be useful for any practical purposes.
+A basic [SAT](https://en.wikipedia.org/wiki/Boolean_satisfiability_problem) solver that implements the standard [DPLL algorithm]((https://en.wikipedia.org/wiki/DPLL_algorithm)) with a slightly modified unit propagation algorithm described in the paper by [Crawford & Auton](https://www.aaai.org/Papers/AAAI/1993/AAAI93-004.pdf). The solver expects problems to be already in the conjunctive normal form (CNF) and accepts DIMACS files as input and will print the result to STDOUT as described in the [DIMACS specification](http://www.satcompetition.org/2011/rules.pdf). Some test inputs are available in the `resources` directory - some of which are sourced from the [SATLIB benchmark problems](https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html).
 
-The solver expects problems to be already in the conjunctive normal form (CNF) and accepts DIMACS files as input and will print the result to STDOUT as described in the [DIMACS specification](http://www.satcompetition.org/2011/rules.pdf). Some test inputs are available in the `resources` directory - some of which are sourced from the [SATLIB benchmark problems](https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html).
+Currently there is a CDCL solver in the works.
 
 
 
