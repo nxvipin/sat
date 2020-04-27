@@ -102,3 +102,85 @@
        :decision-level 0}
       init-context-variable-fields
       init-context-watched-literals))
+
+(defn get-unassigned-variable
+  "Given a context, return an unassigned variable if available otherwise return
+  nil"
+  [context]
+  (-> context
+      :variables-unassigned
+      first))
+
+(defn variable-assigned?
+  "Given a context and a variable, return true if the variable has been assigned
+  otherwise return false"
+  [context variable]
+  (contains? (:variables-assigned context) variable))
+
+(defn variable-unassigned?
+  "Given a context and a variable, return true if the variable is unassigned
+  otherwise returns false"
+  [context variable]
+  (not (assigned? context variable)))
+
+(defn literal-assigned?
+  "Given a context and a literal, return true if the literal is assigned
+  otherwise return false"
+  [context literal]
+  (-> literal
+      literal->variable
+      variable-assigned?))
+
+(defn literal-unassigned?
+  "Given a context and a literal, return true if the literal is unassigned
+  otherwise return false"
+  [context literal]
+  (not (literal-unassigned? context literal)))
+
+(defn watched-literal-assigned?
+  "Given a context and a clause, return true if ar least one of the two watched
+  literals of the clause is assigned"
+  [context clause]
+  (let [[l1 l2] (get-in context [:watched-literals clause])]
+        (or (assigned? l1)
+            (assigned? l2))))
+
+(defn get-watched-literals
+  "Given a context and a clause, return a list of watched literals of the clause"
+  [context clause]
+  (-> context :watched-literals clause))
+
+(defn get-variable-value
+  "Given a context and a variable, return the value of the variable if assigned
+  otherwise returns nil"
+  [context variable]
+  (get-in context [:variables-assigned variable :value]))
+
+(defn get-literal-value
+  "Given a context and a literal, return the value of the literal if assigned
+  otherwise returns nil"
+  [context literal]
+  (let [variable (literal->variable literal)
+        value (get-variable-value variable)]
+    (cond
+      (nil? value) ;; Literal is unassigned
+      value
+
+      (= literal variable) ;; Literal is not negated
+      value
+
+      (not= literal variable) ;; Literal is negated
+      (not value))))
+
+(defn get-clause-unassigned-literal
+  "Given a context, clause and optionally a list of excluded literals with zero or
+  more elements, return a clause literal which is unassigned and not present in
+  the excluded literal list. Return nil if no such literal exists."
+  ([context clause]
+   (get-clause-unassigned-literal context clause []))
+  ([context clause excluded-literals]
+   (let [el-set (set excluded-literals)]
+     (some #(when (and (variable-unassigned? (literal->variable %))
+                      (not (contains? el-set %)))
+              %)
+           clause))))
