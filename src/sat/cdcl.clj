@@ -49,6 +49,7 @@
 (s/def ::context (s/keys :req-un [::clauses
                                   ::variables
                                   ::decision-level
+                                  ::watched-literals
                                   ::variables-assigned
                                   ::variables-unassigned]))
 
