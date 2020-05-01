@@ -122,15 +122,15 @@
   "Given a context and a variable, return true if the variable is unassigned
   otherwise returns false"
   [context variable]
-  (not (assigned? context variable)))
+  (not (variable-assigned? context variable)))
 
 (defn literal-assigned?
   "Given a context and a literal, return true if the literal is assigned
   otherwise return false"
   [context literal]
-  (-> literal
-      literal->variable
-      variable-assigned?))
+  (->> literal
+       literal->variable
+       (variable-assigned? context)))
 
 (defn literal-unassigned?
   "Given a context and a literal, return true if the literal is unassigned
@@ -143,8 +143,8 @@
   literals of the clause is assigned"
   [context clause]
   (let [[l1 l2] (get-in context [:watched-literals clause])]
-        (or (assigned? l1)
-            (assigned? l2))))
+        (or (literal-assigned? context l1)
+            (literal-assigned? context l2))))
 
 (defn get-watched-literals
   "Given a context and a clause, return a list of watched literals of the clause"
@@ -162,7 +162,7 @@
   otherwise returns nil"
   [context literal]
   (let [variable (literal->variable literal)
-        value (get-variable-value variable)]
+        value (get-variable-value context variable)]
     (cond
       (nil? value) ;; Literal is unassigned
       value
@@ -181,7 +181,7 @@
    (get-clause-unassigned-literal context clause []))
   ([context clause excluded-literals]
    (let [el-set (set excluded-literals)]
-     (some #(when (and (variable-unassigned? (literal->variable %))
+     (some #(when (and (variable-unassigned? context (literal->variable %))
                       (not (contains? el-set %)))
               %)
            clause))))
