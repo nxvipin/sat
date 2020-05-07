@@ -45,13 +45,15 @@
                                                        :variable/flipped?])))
 (s/def ::variables (s/coll-of ::variable-name))
 (s/def ::variables-unassigned (s/coll-of ::variable-name))
+(s/def ::conflict? boolean?)
 
 (s/def ::context (s/keys :req-un [::clauses
                                   ::variables
                                   ::decision-level
                                   ::watched-literals
                                   ::variables-assigned
-                                  ::variables-unassigned]))
+                                  ::variables-unassigned
+                                  ::conflict?]))
 
 (def test-input {:dimacs
                  {:problem (list 3 5),
@@ -289,3 +291,37 @@
          (update-in [:variables-assigned variable :flipped?] #(if (nil? %)
                                                                 false
                                                                 true))))))
+
+(defn unit-propagate
+  "Given a context, assign true value to the unssigned literal of each unit
+  clauses recursively until there are no more unit clauses or a conflict is
+  detected. Return the updated context."
+  [context]
+  (let [clause-status (compute-all-clause-status context)
+        unsatisfied-clauses (:unsatisfied clause-status)
+        unit-clauses (:unit clause-status)
+        unit-clause-literal (:unit-clause-literal clause-status)]
+    (cond
+      ;; If there are unsatisfied clauses, either there is a conflict or the
+      ;; input is unsatisfiable - stop all processing and return immediately
+      (some? unsatisfied-clauses)
+      (assoc context :conflict? true)
+
+      ;; If there are unit clauses, proceed with unit propagation
+      (some? unit-clauses)
+      (reduce
+       (fn [context clause]
+         (let [unassigned-literal (get unit-clause-literal clause)
+               unassigned-variable (literal->variable unassigned-literal)
+               variable-value (if (= unassigned-literal unassigned-variable)
+                                true
+                                false)]
+           (-> (assign-variable context unassigned-variable variable-value clause)
+               unit-propagate)))
+       context
+       unit-clauses)
+
+      ;; There are no unit clauses and there are no unsatisfied clauses. Nothing
+      ;; to do here, return the context
+      :else
+      context)))
