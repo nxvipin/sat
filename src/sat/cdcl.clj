@@ -185,3 +185,62 @@
                       (not (contains? el-set %)))
               %)
            clause))))
+
+(defn compute-clause-status
+  "Given a context and a clause, return the clause status map with key `:status`
+  and value being one of `:unsatisfied`, `:statisfied`, `:unit` or `:resolved`.
+  If `:status` is `:unit`, the status map has an additonal key called
+  `:unassigned-literal` with the value being the lone unassigned literal in the
+  clause"
+  [context clause]
+  (let [data (reduce (fn [acc literal]
+                       (let [acc' (update acc :literal-counter inc)
+                             lv (get-literal-value context literal)]
+                         (cond
+                           (true? lv)
+                           (reduced {:satisfied true})
+
+                           (false? lv)
+                           (update acc' :false-counter inc)
+
+                           (nil? lv)
+                           (-> acc'
+                               (update :unassigned-counter inc)
+                               (assoc :unassigned-literal literal)))))
+                     {:satisfied false
+                      :literal-counter 0
+                      :false-counter 0
+                      :unassigned-counter 0
+                      :unassigned-literal nil}
+                     clause)]
+    (cond
+      (true? (:satisfied data))
+      {:status :satisfied}
+
+      (>= (:unassigned-counter data) 2)
+      {:status :unresolved}
+
+      (= (:false-counter data) (:literal-counter data))
+      {:status :unsatisfied}
+
+      (and (= (:unassigned-counter data) 1)
+           (= (:false-counter data) (- (:literal-counter data) 1)))
+      {:status :unit
+       :unassigned-literal (:unassigned-literal data)})))
+
+(defn compute-all-clause-status
+  "Given a context, compute the current status of all clauses and return a map
+  with the status value as the key and and a list of clauses with that status as
+  the value. Additionally, the map has a key `:unit-clause-literal` with value
+  as a map with keys being the current unit clauses and the values being the
+  unassigned literal in the unit clause"
+  [{:keys [clauses] :as context}]
+  (reduce (fn [acc clause]
+            (let [{:keys [status unassigned-literal]}
+                  (compute-clause-status context clause)]
+              (cond-> acc
+                true (update status #(conj % clause))
+                (= :unit status) (assoc-in [:unit-clause-literal clause]
+                                           unassigned-literal))))
+          {}
+          clauses))
