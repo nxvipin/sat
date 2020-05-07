@@ -244,3 +244,48 @@
                                            unassigned-literal))))
           {}
           clauses))
+
+(defn get-variable-decision-level
+  "Given a context and a variable, return the decision level of the variable if it
+  is assigned, nil otherwise"
+  [context variable]
+  (get-in context [:variables-assigned variable :decision-level]))
+
+(defn clause-max-decision-level
+  "Given a context and a clause, return the highest decision level of all the
+  assigned literals in the clause. If none of the literals are assigned, the
+  retunr value is zero"
+  [context clause]
+  (reduce (fn [dl literal]
+            (let [vdl (->> literal
+                           literal->variable
+                           (get-variable-decision-level context))
+                  vdl (if (some? vdl) vdl -1)]
+              (max dl vdl)))
+          0 clause))
+
+(defn get-next-decision-level
+  "Given a context, get the next decision level for the next `decision
+  assignment`"
+  [context]
+  (inc (:decision-level context)))
+
+(defn assign-variable
+  "Given a context, a variable and a value, assign the value to the variable and
+  return the updated context. If the assignment is an `implcation assignment`,
+  the 4-arity version of this function also accepts the antecedent"
+  ([context variable value]
+   (assign-variable context variable value nil))
+  ([context variable value antecedent]
+   (let [dl (if (some? antecedent)
+              (clause-max-decision-level context antecedent)
+              (get-next-decision-level context))]
+     (-> context
+         (update :decision-level #(if (some? antecedent) % dl))
+         (update :variables-unassigned #(disj % variable))
+         (assoc-in [:variables-assigned variable :value] value)
+         (assoc-in [:variables-assigned variable :antecedent] antecedent)
+         (assoc-in [:variables-assigned variable :decision-level] dl)
+         (update-in [:variables-assigned variable :flipped?] #(if (nil? %)
+                                                                false
+                                                                true))))))
