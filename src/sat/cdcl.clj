@@ -138,7 +138,7 @@
   "Given a context and a literal, return true if the literal is unassigned
   otherwise return false"
   [context literal]
-  (not (literal-unassigned? context literal)))
+  (not (literal-assigned? context literal)))
 
 (defn watched-literal-assigned?
   "Given a context and a clause, return true if ar least one of the two watched
