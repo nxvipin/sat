@@ -95,7 +95,7 @@
   [context]
   (->> context
        :clauses
-       (map #(hash-map %1 [(first %1) (second %1)]))
+       (into {} (map #(vector %1 [(first %1) (second %1)])))
        (assoc context :watched-literals)))
 
 (defn initialize-context
