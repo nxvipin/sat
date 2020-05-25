@@ -140,13 +140,18 @@
   [context literal]
   (not (literal-assigned? context literal)))
 
-(defn watched-literal-assigned?
-  "Given a context and a clause, return true if ar least one of the two watched
-  literals of the clause is assigned"
+(defn get-clause-assigned-watched-literals
+  "Given a context and a clause, return the list of watched literals that have
+  been assigned"
   [context clause]
-  (let [[l1 l2] (get-in context [:watched-literals clause])]
-        (or (literal-assigned? context l1)
-            (literal-assigned? context l2))))
+  (let [[l1 l2] (get-in context [:watched-literals clause])
+        l1-assigned? (literal-assigned? context l1)
+        l2-assigned? (literal-assigned? context l2)]
+    (cond
+      (and l1-assigned? l2-assigned?) [l1 l2]
+      (and l1-assigned? (not l2-assigned?)) [l1]
+      (and (not l1-assigned?) l2-assigned?) [l2]
+      (and (not l1-assigned?) (not l2-assigned?)) [])))
 
 (defn get-watched-literals
   "Given a context and a clause, return a list of watched literals of the clause"
@@ -175,18 +180,33 @@
       (not= literal variable) ;; Literal is negated
       (not value))))
 
-(defn get-clause-unassigned-literal
+(defn get-clause-unassigned-literals
   "Given a context, clause and optionally a list of excluded literals with zero or
-  more elements, return a clause literal which is unassigned and not present in
-  the excluded literal list. Return nil if no such literal exists."
+  more elements, return a list of clause literals which is unassigned and not
+  present in the excluded literal list."
   ([context clause]
-   (get-clause-unassigned-literal context clause []))
+   (get-clause-unassigned-literals context clause []))
   ([context clause excluded-literals]
    (let [el-set (set excluded-literals)]
-     (some #(when (and (variable-unassigned? context (literal->variable %))
-                      (not (contains? el-set %)))
-              %)
-           clause))))
+     (filterv #(and (literal-unassigned? context %)
+                    (not (contains? el-set %)))
+              clause))))
+
+(defn update-watched-literal
+  "Given a context and a caluse and watched literal pair, update the clause's
+  watched literal pair with the given input pair and return the updated context"
+  [context clause watched-literal-pair]
+  (assoc-in context [:watched-literals clause] watched-literal-pair))
+
+(defn compute-clause-value [context clause]
+  (reduce (fn [acc literal]
+            (let [lv (get-literal-value context literal)]
+              (cond
+                (true? lv) (reduced true)
+                (nil? lv) (reduced nil)
+                (false? lv) (or acc lv))))
+          false
+          clause))
 
 (defn compute-clause-status
   "Given a context and a clause, return the clause status map with key `:status`
@@ -195,40 +215,32 @@
   `:unassigned-literal` with the value being the lone unassigned literal in the
   clause"
   [context clause]
-  (let [data (reduce (fn [acc literal]
-                       (let [acc' (update acc :literal-counter inc)
-                             lv (get-literal-value context literal)]
-                         (cond
-                           (true? lv)
-                           (reduced {:satisfied true})
+  (let [awls (get-clause-assigned-watched-literals context clause)]
+    (if (empty? awls)
+      ;; The watched literals are unassigned - the clause is definitely not unit
+      [context {:status :unresolved}]
 
-                           (false? lv)
-                           (update acc' :false-counter inc)
+      ;; At least one of the watched literals is assigned - we need to compute
+      ;; the status
+      (let [ul (take 2 (get-clause-unassigned-literals context clause))
+            ul-count (count ul)]
+        (cond
+          ;; There are at least 2 unassigned literals, this clause is
+          ;; unnresolved. Update the watched literals of this caluse and return
+          ;; the updated context and the status
+          (= ul-count 2)
+          [(update-watched-literal context clause ul) {:status :unresolved}]
 
-                           (nil? lv)
-                           (-> acc'
-                               (update :unassigned-counter inc)
-                               (assoc :unassigned-literal literal)))))
-                     {:satisfied false
-                      :literal-counter 0
-                      :false-counter 0
-                      :unassigned-counter 0
-                      :unassigned-literal nil}
-                     clause)]
-    (cond
-      (true? (:satisfied data))
-      {:status :satisfied}
+          ;; There is only one unassigned literal, this clause is a unit
+          (= ul-count 1)
+          [context {:status :unit
+                    :unassigned-literal (first ul)}]
 
-      (>= (:unassigned-counter data) 2)
-      {:status :unresolved}
-
-      (= (:false-counter data) (:literal-counter data))
-      {:status :unsatisfied}
-
-      (and (= (:unassigned-counter data) 1)
-           (= (:false-counter data) (- (:literal-counter data) 1)))
-      {:status :unit
-       :unassigned-literal (:unassigned-literal data)})))
+          ;; This clause is either satisfied or unsatisfied
+          (= ul-count 0)
+          (if (true? (compute-clause-value context clause))
+            [context {:status :satisfied}]
+            [context {:status :unsatisfied}]))))))
 
 (defn compute-all-clause-status
   "Given a context, compute the current status of all clauses and return a map
@@ -237,14 +249,14 @@
   as a map with keys being the current unit clauses and the values being the
   unassigned literal in the unit clause"
   [{:keys [clauses] :as context}]
-  (reduce (fn [acc clause]
-            (let [{:keys [status unassigned-literal]}
+  (reduce (fn [[context status-map] clause]
+            (let [[context {:keys [status unassigned-literal]}]
                   (compute-clause-status context clause)]
-              (cond-> acc
-                true (update status #(conj % clause))
-                (= :unit status) (assoc-in [:unit-clause-literal clause]
-                                           unassigned-literal))))
-          {}
+              [context (cond-> status-map
+                         true (update status (fn [n] (conj n clause)))
+                         (= :unit status) (assoc-in [:unit-clause-literal clause]
+                                                    unassigned-literal))]))
+          [context {}]
           clauses))
 
 (defn get-variable-decision-level
@@ -297,13 +309,13 @@
   clauses recursively until there are no more unit clauses or a conflict is
   detected. Return the updated context."
   [context]
-  (let [clause-status (compute-all-clause-status context)
+  (let [[context clause-status] (compute-all-clause-status context)
         unsatisfied-clauses (:unsatisfied clause-status)
         unit-clauses (:unit clause-status)
         unit-clause-literal (:unit-clause-literal clause-status)]
     (cond
       ;; If there are unsatisfied clauses, either there is a conflict or the
-      ;; input is unsatisfiable - stop all processing and return immediately
+      ;; input is unsatisfiable - stop processing and return immediately
       (some? unsatisfied-clauses)
       (assoc context :conflict? true)
 
